@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# fixpsk - a simple tool to fix psk keys
+# Created by CalmCreative, Jan 2021
+########################################
+
+# initial vars
+
+netFName="$1"
+netFPath="/etc/network/interfaces.d/"
+#psk_in="$2"
+psk_old=""
+psk_new=""
+plain_curr=""
+plain_curr_=""
+ssid_curr=""
+ssid_curr_=""
+
+
+# check if the config exists
+
+PREPROCESS() {
+if [[ "$netFName" == "" ]];then
+	printf "fixpsk - a simple tool to repair psk keys\n"
+	printf ""
+	printf "usage: fixpsk [interface]\n"
+	exit 1
+fi
+
+if [[ ! -f "$netFPath$netFName" ]];then
+	printf "uh oh, looks like no config exists for"" "$netFName".\n"
+	exit 2
+else
+	printf "config exists for "$netFName", all good.\n"
+fi
+
+#if [[ "$psk_in" == "" ]];then
+#	printf "passphrase cannot be empty\n"
+#	exit 3
+#else
+#	printf "passphrase value is not empty. looks like we can continue.\n"
+#fi
+}
+
+# grab the variables
+
+GRABVARS() {
+plain_curr_=$(cat "$netFPath$netFName" | grep "#psk" | cut -c7-)
+plain_curr=$(cat "$netFPath$netFName" | grep "#psk" | cut -c7- | tr '"' ' ')
+psk_old=$(cat "$netFPath$netFName" | grep "wpa-psk" | cut -c10-)
+ssid_curr=$(cat "$netFPath$netFName" | grep "wpa-ssid" | cut -c11- | tr '"' ' ' )
+ssid_curr_=$(cat "$netFPath$netFName" | grep "wpa-ssid" | cut -c11-)
+#echo $( echo $ssid_curr | tr '"' ' ' ) $psk_in
+#echo $ssid_curr $plain_curr
+tmparr0=( $(wpa_passphrase $ssid_curr $plain_curr) )
+psk_new=$( echo ${tmparr0[3]} | cut -c5- )
+tmparr0=()
+#echo old_psk=$psk_old
+#echo new_psk=$psk_new
+}
+
+# verify the old psk key with the generated one
+
+VERIFYPSK() {
+if [[ "$psk_old" == "$psk_new" ]];then
+	printf "no issues present.\n"
+	exit 0
+else
+	printf "psk key mismatch\n"
+fi
+}
+
+# finally, if the psk key needs fixing, it will run this
+FIXPSK () {
+echo "fixing PSK."
+# backup current config (will over-write every fix, use caution)
+sudo mv $netFPath$netFName $netFPath$netFName"_old"
+cat << EOF | sudo tee $netFPath$netFName
+allow-hotplug $netFName
+iface $netFName inet dhcp
+	wpa-ssid $ssid_curr_
+	#psk=$plain_curr_
+	wpa-psk $psk_new
+EOF
+
+if [[ $(cat $netFPath$netFName) == "" ]];then
+	printf "new file contains no data\n"
+else
+	# regrab updated variables and perform a second verification
+	GRABVARS
+	VERIFYPSK
+fi
+}
+
+# function layout
+PREPROCESS
+GRABVARS
+VERIFYPSK
+FIXPSK
