@@ -14,6 +14,7 @@ psk_new=""
 plain_curr=""
 plain_curr_=""
 ssid_curr=""
+ssid_curr_t=""
 ssid_curr_=""
 
 
@@ -49,11 +50,20 @@ plain_curr_=$(cat "$netFPath$netFName" | grep "#psk" | cut -c7-)
 plain_curr=$(cat "$netFPath$netFName" | grep "#psk" | cut -c7- | tr '"' ' ')
 psk_old=$(cat "$netFPath$netFName" | grep "wpa-psk" | cut -c10-)
 ssid_curr=$(cat "$netFPath$netFName" | grep "wpa-ssid" | cut -c11- | tr '"' ' ' )
+# create a trimmed ssid variable to strip whitespace from the start and end
+ssid_curr_t=$(echo "$ssid_curr" | cut -c2- | cut -c-$(( ${#ssid_curr} - 2 )))
 ssid_curr_=$(cat "$netFPath$netFName" | grep "wpa-ssid" | cut -c11-)
 #echo $( echo $ssid_curr | tr '"' ' ' ) $psk_in
-#echo $ssid_curr $plain_curr
-tmparr0=( $(wpa_passphrase $ssid_curr $plain_curr) )
-psk_new=$( echo ${tmparr0[3]} | cut -c5- )
+#echo "$ssid_curr_t" "$plain_curr"
+#tmparr0=( $(wpa_passphrase "$ssid_curr_t" $plain_curr) )
+for i in $(wpa_passphrase "$ssid_curr_t" $plain_curr)
+do
+	if [[ $(printf $i | grep "^psk") ]];then
+		psk_new=$(printf "$i" | cut -c5-)
+		#printf "got psk:"$psk_new"\n"
+	fi
+done
+#echo arr0=${tmparr0[@]}
 tmparr0=()
 #echo old_psk=$psk_old
 #echo new_psk=$psk_new
@@ -75,7 +85,7 @@ FIXPSK () {
 echo "fixing PSK."
 # backup current config (will over-write every fix, use caution)
 sudo mv $netFPath$netFName $netFPath$netFName"_old"
-cat << EOF | sudo tee $netFPath$netFName
+cat << EOF | sudo tee $netFPath$netFName 1>/dev/null 2>/dev/null
 allow-hotplug $netFName
 iface $netFName inet dhcp
 	wpa-ssid $ssid_curr_
@@ -90,6 +100,19 @@ else
 	GRABVARS
 	VERIFYPSK
 fi
+}
+
+FIXPSK_DEV () {
+echo "DEBUGGING; do NOT include in release"
+cat << EOF
+allow-hotplug $netFName
+iface $netFName inet dhcp
+	wpa-ssid "$ssid_curr_t"
+	#psk=$plain_curr_
+	wpa-psk $psk_new
+EOF
+
+exit 0
 }
 
 # function layout
