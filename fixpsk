@@ -84,7 +84,7 @@ fi
 FIXPSK () {
 echo "fixing PSK."
 # backup current config (will over-write every fix, use caution)
-sudo mv $netFPath$netFName $netFPath$netFName"_old"
+sudo mv $netFPath$netFName $HOME$netFName"_old"
 cat << EOF | sudo tee $netFPath$netFName 1>/dev/null 2>/dev/null
 allow-hotplug $netFName
 iface $netFName inet dhcp
